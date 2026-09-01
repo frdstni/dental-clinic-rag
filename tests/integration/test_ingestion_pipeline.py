@@ -16,3 +16,4 @@ def test_load_and_preprocess_document(tmp_path: Path) -> None:
 
     assert processed_document.content == "Clinic Services\n\nDental Implants"
     assert processed_document.metadata.source_path == file_path
+
