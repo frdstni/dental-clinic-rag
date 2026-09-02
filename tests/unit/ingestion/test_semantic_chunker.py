@@ -27,6 +27,14 @@ class FakeEmbeddingModel:
             [float(index), 1.0]
             for index, _ in enumerate(texts)
         ]
+class InvalidEmbeddingModel:
+    def embed(
+        self,
+        texts: list[str],
+    ) -> list[list[float]]:
+        return [
+            [1.0, 0.0],
+        ]
 
 
 def test_cosine_similarity_returns_one_for_identical_vectors() -> None:
@@ -303,3 +311,53 @@ def test_semantic_chunker_splits_on_breakpoint():
     result = chunker.chunk(document)
 
     assert len(result) == 2
+
+def test_semantic_chunker_rejects_embedding_count_mismatch() -> None:
+    metadata = DocumentMetadata(
+        source_path=Path("clinic.txt"),
+    )
+
+    document = SourceDocument(
+        content=(
+            "Clinic is open. "
+            "Call for appointment. "
+            "Dental implants are available."
+        ),
+        metadata=metadata,
+    )
+
+    chunker = SemanticChunker(
+        embedding_model=InvalidEmbeddingModel(),
+        breakpoint_percentile=50,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="embedding count",
+    ):
+        chunker.chunk(document)
+
+def test_semantic_chunker_handles_single_sentence_document() -> None:
+    metadata = DocumentMetadata(
+        source_path=Path("clinic.txt"),
+    )
+
+    document = SourceDocument(
+        content="Clinic provides dental services.",
+        metadata=metadata,
+    )
+
+    chunker = SemanticChunker(
+        embedding_model=FakeEmbeddingModel(),
+        breakpoint_percentile=50,
+    )
+
+    result = chunker.chunk(document)
+
+    assert len(result) == 1
+
+    assert result[0].content == (
+        "Clinic provides dental services."
+    )
+
+    assert result[0].chunk_index == 0
