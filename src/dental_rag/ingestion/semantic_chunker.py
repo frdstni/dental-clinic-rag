@@ -168,10 +168,22 @@ class SemanticChunker:
         sentences = split_sentences(
             document.content
         )
+        if len(sentences) == 1:
+            return [
+              DocumentChunk(
+                  content=sentences[0],
+                  metadata=document.metadata,
+                  chunk_index=0,
+                  start_sentence_index=0,
+                  end_sentence_index_exclusive=1, )
+                  ]
 
         embeddings = self.embedding_model.embed(
             sentences
         )
+        if len(sentences) != len(embeddings):
+            raise ValueError(
+                 "embedding count must match sentence count")
 
         distances = calculate_adjacent_distances(
             embeddings
