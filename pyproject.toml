@@ -11,6 +11,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "pydantic-settings>=2,<3",
     "openai>=3,<4",
+    "qdrant-client>=1.19,<2",
 ]
 
 
