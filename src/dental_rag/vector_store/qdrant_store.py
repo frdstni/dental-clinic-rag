@@ -1,3 +1,5 @@
+from typing import Any
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
@@ -58,3 +60,22 @@ class QdrantVectorStore(VectorStore):
              collection_name=self.collection_name,
              points=points,
         )
+    def search(
+        self,
+        vector: list[float],
+       limit: int,
+    ) -> list[dict[str, Any]]:
+        results = self.client.query_points(
+              collection_name=self.collection_name,
+              query=vector,
+              limit=limit,
+        )
+
+        return [
+           {
+            "id": result.id,
+            "score": result.score,
+            "payload": result.payload or {},
+           }
+           for result in results.points
+    ]

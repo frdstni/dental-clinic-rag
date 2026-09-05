@@ -114,3 +114,51 @@ def test_add_empty_vectors_does_not_call_qdrant() -> None:
 
     mock_qdrant.return_value.upsert.assert_not_called()
 
+
+def test_search_returns_qdrant_results() -> None:
+    with patch(
+        "dental_rag.vector_store.qdrant_store.QdrantClient"
+    ) as mock_qdrant:
+
+        mock_result = type(
+            "Result",
+            (),
+            {
+                "id": 1,
+                "score": 0.95,
+                "payload": {
+                    "content": "Dental implant information."
+                },
+            },
+        )
+
+        mock_qdrant.return_value.query_points.return_value = type(
+            "Response",
+            (),
+            {
+                "points": [
+                    mock_result
+                ]
+            },
+        )
+
+        store = QdrantVectorStore(
+            collection_name="clinic_documents"
+        )
+
+        results = store.search(
+            vector=[0.1, 0.2],
+            limit=3,
+        )
+
+    mock_qdrant.return_value.query_points.assert_called_once()
+
+    assert results == [
+        {
+            "id": 1,
+            "score": 0.95,
+            "payload": {
+                "content": "Dental implant information."
+            },
+        }
+    ]
