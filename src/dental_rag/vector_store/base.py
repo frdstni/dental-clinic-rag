@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Any, Protocol
 
 
 class VectorStore(Protocol):
@@ -17,4 +17,10 @@ class VectorStore(Protocol):
         vectors: list[list[float]],
         payloads: list[dict[str, object]],
     ) -> None:
+        ...
+    def search(
+        self,
+        vector: list[float],
+        limit: int,
+    ) -> list[dict[str, Any]]:
         ...
