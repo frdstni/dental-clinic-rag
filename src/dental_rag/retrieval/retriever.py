@@ -1,6 +1,7 @@
-from typing import Any
-
 from dental_rag.embeddings.base import EmbeddingModel
+from dental_rag.retrieval.models import (
+    RetrievalResult,
+)
 from dental_rag.vector_store.base import VectorStore
 
 
@@ -21,21 +22,32 @@ class Retriever:
         self,
         query: str,
         limit: int = 5,
-    ) -> list[dict[str, Any]]:
+    ) -> list[RetrievalResult]:
 
-         if not query.strip():
-             raise ValueError("Query cannot be empty")
-
-         if limit <= 0:
-             raise ValueError(
-                  "Limit must be greater than zero"
+        if not query.strip():
+            raise ValueError(
+                "Query cannot be empty"
             )
 
-         query_vector = self.embedding_model.embed(
-             [query]
+        if limit <= 0:
+            raise ValueError(
+                "Limit must be greater than zero"
+            )
+
+        query_vector = self.embedding_model.embed(
+            [query],
         )[0]
 
-         return self.vector_store.search(
+        results = self.vector_store.search(
             vector=query_vector,
             limit=limit,
         )
+
+        return [
+            RetrievalResult(
+                id=str(result["id"]),
+                score=float(result["score"]),
+                payload=result["payload"],
+            )
+            for result in results
+        ]
