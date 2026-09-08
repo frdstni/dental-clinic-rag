@@ -3,6 +3,8 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from dental_rag.query_processing.models import (
+    DecomposedQuery,
+    ExpandedQuery,
     QueryAction,
     QueryAnalysis,
     QueryType,
@@ -109,3 +111,123 @@ def test_query_enum_values_are_stable() -> None:
     assert QueryAction.NONE.value == "none"
     assert QueryAction.EXPAND.value == "expand"
     assert QueryAction.DECOMPOSE.value == "decompose"
+
+def test_expanded_query_creation() -> None:
+    expanded = ExpandedQuery(
+        original_query="implant",
+        expanded_queries=(
+            "dental implant procedure",
+            "dental implant risks",
+        ),
+    )
+
+    assert expanded.original_query == "implant"
+
+    assert expanded.expanded_queries == (
+        "dental implant procedure",
+        "dental implant risks",
+    )
+
+
+def test_expanded_query_rejects_blank_original_query() -> None:
+    with pytest.raises(ValueError):
+        ExpandedQuery(
+            original_query="",
+            expanded_queries=(
+                "dental implant",
+            ),
+        )
+
+
+def test_expanded_query_rejects_empty_expansion_list() -> None:
+    with pytest.raises(ValueError):
+        ExpandedQuery(
+            original_query="implant",
+            expanded_queries=(),
+        )
+
+
+@pytest.mark.parametrize(
+    "expanded_queries",
+    [
+        ("",),
+        ("   ",),
+        ("\t",),
+    ],
+)
+def test_expanded_query_rejects_blank_expanded_queries(
+    expanded_queries: tuple[str, ...],
+) -> None:
+    with pytest.raises(ValueError):
+        ExpandedQuery(
+            original_query="implant",
+            expanded_queries=expanded_queries,
+        )
+
+
+def test_expanded_query_is_immutable() -> None:
+    expanded = ExpandedQuery(
+        original_query="implant",
+        expanded_queries=(
+            "dental implant",
+        ),
+    )
+
+    with pytest.raises(
+        FrozenInstanceError,
+    ):
+        expanded.original_query = "changed"
+
+def test_decomposed_query_creation() -> None:
+    decomposed = DecomposedQuery(
+        original_query="implant causes and treatment",
+        sub_queries=(
+            "implant causes",
+            "implant treatment",
+        ),
+    )
+
+    assert decomposed.original_query == (
+        "implant causes and treatment"
+    )
+
+    assert decomposed.sub_queries == (
+        "implant causes",
+        "implant treatment",
+    )
+
+
+def test_decomposed_query_rejects_blank_original_query() -> None:
+    with pytest.raises(ValueError):
+        DecomposedQuery(
+            original_query="",
+            sub_queries=(
+                "implant causes",
+            ),
+        )
+
+
+def test_decomposed_query_rejects_empty_sub_queries() -> None:
+    with pytest.raises(ValueError):
+        DecomposedQuery(
+            original_query="implant",
+            sub_queries=(),
+        )
+
+
+@pytest.mark.parametrize(
+    "sub_queries",
+    [
+        ("",),
+        (" ",),
+        ("\t",),
+    ],
+)
+def test_decomposed_query_rejects_blank_sub_queries(
+    sub_queries: tuple[str, ...],
+) -> None:
+    with pytest.raises(ValueError):
+        DecomposedQuery(
+            original_query="implant",
+            sub_queries=sub_queries,
+        )
