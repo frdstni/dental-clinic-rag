@@ -3,6 +3,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from dental_rag.query_processing.models import (
+    ExpandedQuery,
     QueryAction,
     QueryAnalysis,
     QueryType,
@@ -109,3 +110,69 @@ def test_query_enum_values_are_stable() -> None:
     assert QueryAction.NONE.value == "none"
     assert QueryAction.EXPAND.value == "expand"
     assert QueryAction.DECOMPOSE.value == "decompose"
+
+def test_expanded_query_creation() -> None:
+    expanded = ExpandedQuery(
+        original_query="implant",
+        expanded_queries=(
+            "dental implant procedure",
+            "dental implant risks",
+        ),
+    )
+
+    assert expanded.original_query == "implant"
+
+    assert expanded.expanded_queries == (
+        "dental implant procedure",
+        "dental implant risks",
+    )
+
+
+def test_expanded_query_rejects_blank_original_query() -> None:
+    with pytest.raises(ValueError):
+        ExpandedQuery(
+            original_query="",
+            expanded_queries=(
+                "dental implant",
+            ),
+        )
+
+
+def test_expanded_query_rejects_empty_expansion_list() -> None:
+    with pytest.raises(ValueError):
+        ExpandedQuery(
+            original_query="implant",
+            expanded_queries=(),
+        )
+
+
+@pytest.mark.parametrize(
+    "expanded_queries",
+    [
+        ("",),
+        ("   ",),
+        ("\t",),
+    ],
+)
+def test_expanded_query_rejects_blank_expanded_queries(
+    expanded_queries: tuple[str, ...],
+) -> None:
+    with pytest.raises(ValueError):
+        ExpandedQuery(
+            original_query="implant",
+            expanded_queries=expanded_queries,
+        )
+
+
+def test_expanded_query_is_immutable() -> None:
+    expanded = ExpandedQuery(
+        original_query="implant",
+        expanded_queries=(
+            "dental implant",
+        ),
+    )
+
+    with pytest.raises(
+        FrozenInstanceError,
+    ):
+        expanded.original_query = "changed"
