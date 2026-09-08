@@ -59,3 +59,25 @@ class ExpandedQuery:
                 raise ValueError(
                     "expanded query cannot be blank"
                 )
+
+@dataclass(frozen=True, slots=True)
+class DecomposedQuery:
+    original_query: str
+    sub_queries: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.original_query.strip():
+            raise ValueError(
+                "original query cannot be blank"
+            )
+
+        if not self.sub_queries:
+            raise ValueError(
+                "sub queries cannot be empty"
+            )
+
+        for query in self.sub_queries:
+            if not query.strip():
+                raise ValueError(
+                    "sub query cannot be blank"
+                )
