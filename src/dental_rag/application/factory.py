@@ -1,6 +1,7 @@
 from dental_rag.application.rag_service import (
     RagService,
 )
+from dental_rag.config.settings import settings
 from dental_rag.embeddings.openai_embedding import (
     OpenAIEmbeddingModel,
 )
@@ -35,8 +36,8 @@ def create_rag_service() -> RagService:
     embedding_model = OpenAIEmbeddingModel()
 
     vector_store = QdrantVectorStore(
-        collection_name="dental_clinic",
-    )
+    collection_name=settings.qdrant_collection_name,
+)
 
     retriever = Retriever(
         embedding_model=embedding_model,
