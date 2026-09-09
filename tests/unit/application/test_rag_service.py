@@ -14,14 +14,16 @@ from dental_rag.retrieval.models import (
 class FakeRetriever:
     def __init__(
         self,
-        result: list[RetrievalResult] | None = None,
+        results: list[list[RetrievalResult]]
+        | None = None,
     ) -> None:
-        self.received_query: str | None = None
-        self.received_limit: int | None = None
-        self.result = (
-            result
-            if result is not None
-            else []
+        self.received_queries: list[str] = []
+        self.received_limits: list[int] = []
+
+        self.results = (
+            results
+            if results is not None
+            else [[]]
         )
 
     def retrieve(
@@ -29,10 +31,10 @@ class FakeRetriever:
         query: str,
         limit: int,
     ) -> list[RetrievalResult]:
-        self.received_query = query
-        self.received_limit = limit
+        self.received_queries.append(query)
+        self.received_limits.append(limit)
 
-        return self.result
+        return self.results.pop(0)
 
 
 class ErrorRetriever:
@@ -65,6 +67,25 @@ class FakeQualityChecker:
         return self.quality
 
 
+class SequentialQualityChecker:
+    def __init__(
+        self,
+        qualities: list[RetrievalQuality],
+    ) -> None:
+        self.qualities = qualities
+        self.calls = 0
+
+    def check(
+        self,
+        results: Sequence[RetrievalResult],
+    ) -> RetrievalQuality:
+        quality = self.qualities[self.calls]
+
+        self.calls += 1
+
+        return quality
+
+
 class ErrorQualityChecker:
     def check(
         self,
@@ -72,6 +93,33 @@ class ErrorQualityChecker:
     ) -> RetrievalQuality:
         raise RuntimeError(
             "quality check failed"
+        )
+
+
+class FakeRefiner:
+    def __init__(
+        self,
+        refined_query: str = "refined query",
+    ) -> None:
+        self.received_query: str | None = None
+        self.refined_query = refined_query
+
+    def refine(
+        self,
+        query: str,
+    ) -> str:
+        self.received_query = query
+
+        return self.refined_query
+
+
+class ErrorRefiner:
+    def refine(
+        self,
+        query: str,
+    ) -> str:
+        raise RuntimeError(
+            "refinement failed"
         )
 
 
@@ -104,9 +152,11 @@ def test_rag_service_delegates_retrieval() -> None:
     expected_result = make_result()
 
     retriever = FakeRetriever(
-        result=[
-            expected_result,
-        ]
+        results=[
+            [
+                expected_result,
+            ]
+        ],
     )
 
     service = RagService(
@@ -125,8 +175,13 @@ def test_rag_service_delegates_retrieval() -> None:
         expected_result,
     ]
 
-    assert retriever.received_query == "implant"
-    assert retriever.received_limit == 3
+    assert retriever.received_queries == [
+        "implant",
+    ]
+
+    assert retriever.received_limits == [
+        3,
+    ]
 
 
 def test_rag_service_uses_default_limit() -> None:
@@ -143,7 +198,9 @@ def test_rag_service_uses_default_limit() -> None:
         query="implant",
     )
 
-    assert retriever.received_limit == 5
+    assert retriever.received_limits == [
+        5,
+    ]
 
 
 def test_rag_service_returns_empty_results() -> None:
@@ -181,9 +238,11 @@ def test_retrieve_with_quality_returns_context() -> None:
     retrieved_result = make_result()
 
     retriever = FakeRetriever(
-        result=[
-            retrieved_result,
-        ]
+        results=[
+            [
+                retrieved_result,
+            ]
+        ],
     )
 
     expected_quality = make_quality()
@@ -215,9 +274,11 @@ def test_retrieve_with_quality_returns_context() -> None:
 
 def test_retrieve_with_quality_delegates_query_and_limit() -> None:
     retriever = FakeRetriever(
-        result=[
-            make_result(),
-        ]
+        results=[
+            [
+                make_result(),
+            ]
+        ],
     )
 
     service = RagService(
@@ -232,11 +293,13 @@ def test_retrieve_with_quality_delegates_query_and_limit() -> None:
         limit=7,
     )
 
-    assert (
-        retriever.received_query
-        == "dental implant"
-    )
-    assert retriever.received_limit == 7
+    assert retriever.received_queries == [
+        "dental implant",
+    ]
+
+    assert retriever.received_limits == [
+        7,
+    ]
 
 
 def test_retrieve_with_quality_checks_empty_results() -> None:
@@ -258,16 +321,20 @@ def test_retrieve_with_quality_checks_empty_results() -> None:
     )
 
     assert context.results == ()
+
     assert context.quality.passed is False
+
     assert quality_checker.received_results == []
 
 
 def test_retrieve_with_quality_propagates_checker_errors() -> None:
     service = RagService(
         retriever=FakeRetriever(
-            result=[
-                make_result(),
-            ]
+            results=[
+                [
+                    make_result(),
+                ]
+            ],
         ),
         quality_checker=ErrorQualityChecker(),
     )
@@ -277,5 +344,151 @@ def test_retrieve_with_quality_propagates_checker_errors() -> None:
         match="quality check failed",
     ):
         service.retrieve_with_quality(
+            query="implant",
+        )
+
+
+def test_retrieve_with_refinement_skips_refiner_when_quality_passes() -> None:
+    refiner = FakeRefiner()
+
+    service = RagService(
+        retriever=FakeRetriever(
+            results=[
+                [
+                    make_result(),
+                ]
+            ],
+        ),
+        quality_checker=FakeQualityChecker(
+            quality=make_quality(
+                passed=True,
+            ),
+        ),
+        refiner=refiner,
+    )
+
+    context = service.retrieve_with_refinement(
+        query="implant",
+    )
+
+    assert context.quality.passed is True
+
+    assert refiner.received_query is None
+
+
+def test_retrieve_with_refinement_uses_refined_query() -> None:
+    retriever = FakeRetriever(
+        results=[
+            [],
+            [
+                make_result(),
+            ],
+        ],
+    )
+
+    refiner = FakeRefiner(
+        refined_query="implant complications",
+    )
+
+    quality_checker = SequentialQualityChecker(
+        qualities=[
+            make_quality(
+                passed=False,
+            ),
+            make_quality(
+                passed=True,
+            ),
+        ],
+    )
+
+    service = RagService(
+        retriever=retriever,
+        quality_checker=quality_checker,
+        refiner=refiner,
+    )
+
+    context = service.retrieve_with_refinement(
+        query="implant",
+    )
+
+    assert context.quality.passed is True
+
+    assert retriever.received_queries == [
+        "implant",
+        "implant complications",
+    ]
+
+    assert refiner.received_query == "implant"
+
+
+def test_retrieve_with_refinement_propagates_refiner_error() -> None:
+    service = RagService(
+        retriever=FakeRetriever(
+            results=[
+                []
+            ],
+        ),
+        quality_checker=FakeQualityChecker(
+            quality=make_quality(
+                passed=False,
+            ),
+        ),
+        refiner=ErrorRefiner(),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="refinement failed",
+    ):
+        service.retrieve_with_refinement(
+            query="implant",
+        )
+
+
+def test_retrieve_with_refinement_requires_refiner_on_failed_quality() -> None:
+    service = RagService(
+        retriever=FakeRetriever(
+            results=[
+                []
+            ],
+        ),
+        quality_checker=FakeQualityChecker(
+            quality=make_quality(
+                passed=False,
+            ),
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="refiner is required",
+    ):
+        service.retrieve_with_refinement(
+            query="implant",
+        )
+
+
+def test_retrieve_with_refinement_rejects_empty_refined_query() -> None:
+    service = RagService(
+        retriever=FakeRetriever(
+            results=[
+                []
+            ],
+        ),
+        quality_checker=FakeQualityChecker(
+            quality=make_quality(
+                passed=False,
+            ),
+        ),
+        refiner=FakeRefiner(
+            refined_query="   ",
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="refined query cannot be empty",
+    ):
+        service.retrieve_with_refinement(
             query="implant",
         )
