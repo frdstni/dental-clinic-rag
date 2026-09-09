@@ -88,4 +88,4 @@ def test_full_rag_retrieval_flow(
 
     assert results
 
-    assert results[0]["payload"]["source"] == "clinic.txt"
+    assert results[0].payload["source"] == "clinic.txt"

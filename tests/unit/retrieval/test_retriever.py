@@ -1,8 +1,11 @@
-from typing import Any
-
 import pytest
 
-from dental_rag.retrieval.retriever import Retriever
+from dental_rag.retrieval.models import (
+    RetrievalResult,
+)
+from dental_rag.retrieval.retriever import (
+    Retriever,
+)
 
 
 class FakeEmbeddingModel:
@@ -11,98 +14,107 @@ class FakeEmbeddingModel:
         texts: list[str],
     ) -> list[list[float]]:
         return [
-            [0.1, 0.2, 0.3]
+            [
+                0.1,
+                0.2,
+                0.3,
+            ]
         ]
 
 
 class FakeVectorStore:
-    def __init__(self) -> None:
-        self.received_vector: list[float] | None = None
-        self.received_limit: int | None = None
-
     def search(
         self,
         vector: list[float],
         limit: int,
-    ) -> list[dict[str, Any]]:
-        self.received_vector = vector
-        self.received_limit = limit
-
+    ) -> list[dict[str, object]]:
         return [
             {
-                "content": "Dental implant information",
-                "score": 0.95,
+                "id": "doc-1",
+                "score": 0.85,
+                "payload": {
+                    "text": "implant information",
+                },
             }
         ]
 
 
-def test_retriever_embeds_query_and_searches() -> None:
-    vector_store = FakeVectorStore()
-
-    retriever = Retriever(
+@pytest.fixture
+def retriever() -> Retriever:
+    return Retriever(
         embedding_model=FakeEmbeddingModel(),
-        vector_store=vector_store,
+        vector_store=FakeVectorStore(),
+    )
+
+
+def test_retriever_embeds_query_and_searches(
+    retriever: Retriever,
+) -> None:
+    results = retriever.retrieve(
+        "implant",
+    )
+
+    assert len(results) == 1
+
+    assert isinstance(
+        results[0],
+        RetrievalResult,
+    )
+
+    assert results[0].id == "doc-1"
+
+    assert results[0].score == 0.85
+
+    assert results[0].payload == {
+        "text": "implant information",
+    }
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "",
+        " ",
+        "\n",
+        "\t",
+    ],
+)
+def test_retriever_rejects_empty_query(
+    retriever: Retriever,
+    query: str,
+) -> None:
+    with pytest.raises(ValueError):
+        retriever.retrieve(query)
+
+
+@pytest.mark.parametrize(
+    "limit",
+    [
+        0,
+        -1,
+        -5,
+    ],
+)
+def test_retriever_rejects_invalid_limit(
+    retriever: Retriever,
+    limit: int,
+) -> None:
+    with pytest.raises(ValueError):
+        retriever.retrieve(
+            "implant",
+            limit=limit,
+        )
+
+
+def test_retriever_returns_empty_results(
+    retriever: Retriever,
+) -> None:
+    retriever.vector_store.search = (
+        lambda vector, limit: []
     )
 
     results = retriever.retrieve(
-        query="implant cost",
-        limit=3,
+        "implant",
     )
 
-    assert results == [
-        {
-            "content": "Dental implant information",
-            "score": 0.95,
-        }
-    ]
-
-    assert vector_store.received_vector == [
-        0.1,
-        0.2,
-        0.3,
-    ]
-
-    assert vector_store.received_limit == 3
-
-def test_retriever_rejects_empty_query() -> None:
-    retriever = Retriever(
-        embedding_model=FakeEmbeddingModel(),
-        vector_store=FakeVectorStore(),
-    )
-
-    with pytest.raises(ValueError):
-        retriever.retrieve(
-            query="",
-        )
-
-def test_retriever_returns_empty_result_when_no_match() -> None:
-    class EmptyVectorStore:
-        def search(
-            self,
-            vector: list[float],
-            limit: int,
-        ) -> list[dict[str, object]]:
-            return []
-
-    retriever = Retriever(
-        embedding_model=FakeEmbeddingModel(),
-        vector_store=EmptyVectorStore(),
-    )
-
-    result = retriever.retrieve(
-        query="unknown question",
-    )
-
-    assert result == []
-
-def test_retriever_rejects_invalid_limit() -> None:
-    retriever = Retriever(
-        embedding_model=FakeEmbeddingModel(),
-        vector_store=FakeVectorStore(),
-    )
-
-    with pytest.raises(ValueError):
-        retriever.retrieve(
-            query="implant",
-            limit=0,
-        )
+    assert results == []
