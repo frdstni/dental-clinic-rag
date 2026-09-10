@@ -7,21 +7,21 @@ from dental_rag.query_processing.pipeline import (
 from dental_rag.query_processing.refiners.base import (
     QueryRefiner,
 )
+from dental_rag.retrieval.base import (
+    RetrievalBackend,
+)
 from dental_rag.retrieval.models import (
     RetrievalResult,
 )
 from dental_rag.retrieval.quality_checker import (
     RetrievalQualityChecker,
 )
-from dental_rag.retrieval.retriever import (
-    Retriever,
-)
 
 
 class RagService:
     def __init__(
         self,
-        retriever: Retriever,
+        retriever: RetrievalBackend,
         quality_checker: RetrievalQualityChecker,
         query_pipeline: QueryPipeline | None = None,
         refiner: QueryRefiner | None = None,

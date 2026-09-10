@@ -1,6 +1,10 @@
 
-from rank_bm25 import BM25Okapi  # type: ignore[import-untyped]
-
+from dental_rag.domain.models import (
+    DocumentChunk,
+)
+from dental_rag.ingestion.sparse_index import (
+    SparseIndex,
+)
 from dental_rag.retrieval.models import (
     RetrievalResult,
 )
@@ -8,77 +12,43 @@ from dental_rag.retrieval.models import (
 
 class SparseRetriever:
     """
-    Sparse retrieval using BM25.
+    Retrieval adapter over SparseIndex.
     """
 
     def __init__(
         self,
-        documents: list[dict[str, object]],
+        index: SparseIndex,
     ) -> None:
-        if not documents:
-            raise ValueError(
-                "documents cannot be empty"
-            )
-
-        self.documents = documents
-
-        tokenized_documents = [
-            self._tokenize(
-                str(document["content"])
-            )
-            for document in documents
-        ]
-
-        self.bm25 = BM25Okapi(
-            tokenized_documents,
-        )
-
-    def _tokenize(
-        self,
-        text: str,
-    ) -> list[str]:
-        return text.lower().split()
+        self.index = index
 
     def retrieve(
         self,
         query: str,
         limit: int = 5,
     ) -> list[RetrievalResult]:
-        if not query.strip():
-            raise ValueError(
-                "Query cannot be empty"
-            )
-
-        if limit <= 0:
-            raise ValueError(
-                "Limit must be greater than zero"
-            )
-
-        query_tokens = self._tokenize(
-            query,
+        results = self.index.search(
+            query=query,
+            limit=limit,
         )
 
-        scores = self.bm25.get_scores(
-            query_tokens,
-        )
-
-        ranked_indexes = sorted(
-            range(len(scores)),
-            key=lambda index: scores[index],
-            reverse=True,
-        )
-
-        results: list[RetrievalResult] = []
-
-        for index in ranked_indexes[:limit]:
-            document = self.documents[index]
-
-            results.append(
-                RetrievalResult(
-                    id=str(document["id"]),
-                    score=float(scores[index]),
-                    payload=document,
-                )
+        return [
+            RetrievalResult(
+                id=self._create_id(chunk),
+                score=score,
+                payload={
+                    "content": chunk.content,
+                    "source": chunk.metadata.file_name,
+                    "chunk_index": chunk.chunk_index,
+                },
             )
+            for chunk, score in results
+        ]
 
-        return results
+    def _create_id(
+         self,
+         chunk: DocumentChunk,
+    ) -> str:
+        return (
+            f"{chunk.metadata.file_name}:"
+            f"{chunk.chunk_index}"
+        )
