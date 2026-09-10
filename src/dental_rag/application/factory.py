@@ -8,6 +8,18 @@ from dental_rag.embeddings.openai_embedding import (
 from dental_rag.llm.openai_llm import (
     OpenAILLM,
 )
+from dental_rag.query_processing.analyzer import (
+    QueryAnalyzer,
+)
+from dental_rag.query_processing.decomposer import (
+    QueryDecomposer,
+)
+from dental_rag.query_processing.expansion import (
+    QueryExpander,
+)
+from dental_rag.query_processing.pipeline import (
+    QueryPipeline,
+)
 from dental_rag.query_processing.refiners.hyde import (
     HyDERefiner,
 )
@@ -33,11 +45,17 @@ def create_rag_service() -> RagService:
         llm=llm,
     )
 
+    query_pipeline = QueryPipeline(
+        analyzer=QueryAnalyzer(),
+        expander=QueryExpander(),
+        decomposer=QueryDecomposer(),
+    )
+
     embedding_model = OpenAIEmbeddingModel()
 
     vector_store = QdrantVectorStore(
-    collection_name=settings.qdrant_collection_name,
-)
+        collection_name=settings.qdrant_collection_name,
+    )
 
     retriever = Retriever(
         embedding_model=embedding_model,
@@ -49,5 +67,6 @@ def create_rag_service() -> RagService:
     return RagService(
         retriever=retriever,
         quality_checker=quality_checker,
+        query_pipeline=query_pipeline,
         refiner=refiner,
     )

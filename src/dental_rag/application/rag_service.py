@@ -1,6 +1,9 @@
 from dental_rag.application.models import (
     RetrievalContext,
 )
+from dental_rag.query_processing.pipeline import (
+    QueryPipeline,
+)
 from dental_rag.query_processing.refiners.base import (
     QueryRefiner,
 )
@@ -20,20 +23,62 @@ class RagService:
         self,
         retriever: Retriever,
         quality_checker: RetrievalQualityChecker,
+        query_pipeline: QueryPipeline | None = None,
         refiner: QueryRefiner | None = None,
     ) -> None:
         self.retriever = retriever
         self.quality_checker = quality_checker
+        self.query_pipeline = query_pipeline
         self.refiner = refiner
+
+    def _process_query(
+        self,
+        query: str,
+    ) -> tuple[str, ...]:
+        if self.query_pipeline is None:
+            return (query,)
+
+        return self.query_pipeline.process(
+            query,
+        )
+
+    def _deduplicate_results(
+        self,
+        results: list[RetrievalResult],
+    ) -> list[RetrievalResult]:
+        seen_ids: set[str] = set()
+        unique_results: list[RetrievalResult] = []
+
+        for result in results:
+            if result.id in seen_ids:
+                continue
+
+            seen_ids.add(result.id)
+            unique_results.append(result)
+
+        return unique_results
 
     def retrieve_context(
         self,
         query: str,
         limit: int = 5,
     ) -> list[RetrievalResult]:
-        return self.retriever.retrieve(
-            query=query,
-            limit=limit,
+        queries = self._process_query(
+            query,
+        )
+
+        results: list[RetrievalResult] = []
+
+        for processed_query in queries:
+            results.extend(
+                self.retriever.retrieve(
+                    query=processed_query,
+                    limit=limit,
+                )
+            )
+
+        return self._deduplicate_results(
+            results,
         )
 
     def retrieve_with_quality(
