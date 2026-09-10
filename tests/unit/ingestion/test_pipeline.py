@@ -8,6 +8,9 @@ from dental_rag.domain.models import (
 from dental_rag.ingestion.pipeline import (
     IngestionPipeline,
 )
+from dental_rag.ingestion.sparse_index import (
+    SparseIndex,
+)
 
 
 class FakeChunker:
@@ -51,6 +54,21 @@ class FakeVectorStore:
         self.payloads = payloads
 
 
+class FakeSparseIndexBuilder:
+    def __init__(self) -> None:
+        self.called_with: list[DocumentChunk] | None = None
+
+    def build(
+        self,
+        chunks: list[DocumentChunk],
+    ) -> SparseIndex:
+        self.called_with = chunks
+
+        return SparseIndex(
+            chunks=chunks,
+        )
+
+
 def test_ingestion_pipeline_stores_document_chunks() -> None:
     document = SourceDocument(
         content="Dental implant information.",
@@ -82,3 +100,30 @@ def test_ingestion_pipeline_stores_document_chunks() -> None:
             "chunk_index": 0,
         }
     ]
+
+
+def test_ingestion_pipeline_builds_sparse_index_when_configured() -> None:
+    document = SourceDocument(
+        content="Dental implant information.",
+        metadata=DocumentMetadata(
+            source_path=Path("clinic.txt"),
+        ),
+    )
+
+    vector_store = FakeVectorStore()
+    sparse_builder = FakeSparseIndexBuilder()
+
+    pipeline = IngestionPipeline(
+        chunker=FakeChunker(),
+        embedding_model=FakeEmbeddingModel(),
+        vector_store=vector_store,
+        sparse_index_builder=sparse_builder,
+    )
+
+    chunks = pipeline.run(document)
+
+    assert len(chunks) == 1
+
+    assert sparse_builder.called_with == chunks
+
+    assert pipeline.sparse_index is not None
