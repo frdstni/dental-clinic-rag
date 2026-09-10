@@ -121,6 +121,21 @@ class ErrorRefiner:
         raise RuntimeError(
             "refinement failed"
         )
+class FakeQueryPipeline:
+    def __init__(
+        self,
+        processed_queries: tuple[str, ...],
+    ) -> None:
+        self.processed_queries = processed_queries
+        self.received_queries: list[str] = []
+
+    def process(
+        self,
+        query: str,
+    ) -> tuple[str, ...]:
+        self.received_queries.append(query)
+
+        return self.processed_queries
 
 
 def make_result(
@@ -492,3 +507,48 @@ def test_retrieve_with_refinement_rejects_empty_refined_query() -> None:
         service.retrieve_with_refinement(
             query="implant",
         )
+def test_rag_service_uses_query_pipeline() -> None:
+    first_result = make_result()
+
+    retriever = FakeRetriever(
+        results=[
+            [
+                first_result,
+            ],
+            [
+                first_result,
+            ],
+        ],
+    )
+
+    query_pipeline = FakeQueryPipeline(
+        processed_queries=(
+            "implant",
+            "implant risks",
+        ),
+    )
+
+    service = RagService(
+        retriever=retriever,
+        quality_checker=FakeQualityChecker(
+            quality=make_quality(),
+        ),
+        query_pipeline=query_pipeline,
+    )
+
+    result = service.retrieve_context(
+        query="implant",
+    )
+
+    assert query_pipeline.received_queries == [
+        "implant",
+    ]
+
+    assert retriever.received_queries == [
+        "implant",
+        "implant risks",
+    ]
+
+    assert result == [
+        first_result,
+    ]
