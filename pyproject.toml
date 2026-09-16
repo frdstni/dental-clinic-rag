@@ -13,6 +13,8 @@ dependencies = [
     "openai>=3,<4",
     "qdrant-client>=1.19,<2",
     "rank-bm25>=0.2,<1",
+    "sentence-transformers>=3.0,<3.2",
+    "transformers>=4.38,<5",
 ]
 
 

@@ -17,8 +17,8 @@ from dental_rag.ingestion.sparse_index import (
 from dental_rag.query_processing.refiners.hyde import (
     HyDERefiner,
 )
-from dental_rag.retrieval.hybrid_retriever import (
-    HybridRetriever,
+from dental_rag.retrieval.pipeline import (
+    RetrievalPipeline,
 )
 
 
@@ -32,6 +32,9 @@ def test_create_rag_service_returns_rag_service() -> None:
         ),
         patch(
             "dental_rag.application.factory.QdrantVectorStore",
+        ),
+        patch(
+            "dental_rag.application.factory.CrossEncoderReranker",
         ),
     ):
         service = create_rag_service()
@@ -53,6 +56,9 @@ def test_create_rag_service_configures_hyde_refiner() -> None:
         patch(
             "dental_rag.application.factory.QdrantVectorStore",
         ),
+        patch(
+            "dental_rag.application.factory.CrossEncoderReranker",
+        ),
     ):
         service = create_rag_service()
 
@@ -73,15 +79,17 @@ def test_create_rag_service_creates_retrieval_dependencies() -> None:
         patch(
             "dental_rag.application.factory.QdrantVectorStore",
         ),
+        patch(
+            "dental_rag.application.factory.CrossEncoderReranker",
+        ),
     ):
         service = create_rag_service()
 
     assert service.retriever is not None
-
     assert service.quality_checker is not None
 
 
-def test_create_rag_service_uses_hybrid_retriever_when_sparse_index_exists() -> None:
+def test_create_rag_service_uses_retrieval_pipeline_when_sparse_index_exists() -> None:
     sparse_index = SparseIndex(
         chunks=[
             DocumentChunk(
@@ -108,6 +116,9 @@ def test_create_rag_service_uses_hybrid_retriever_when_sparse_index_exists() -> 
         patch(
             "dental_rag.application.factory.QdrantVectorStore",
         ),
+        patch(
+            "dental_rag.application.factory.CrossEncoderReranker",
+        ),
     ):
         service = create_rag_service(
             sparse_index=sparse_index,
@@ -115,5 +126,5 @@ def test_create_rag_service_uses_hybrid_retriever_when_sparse_index_exists() -> 
 
     assert isinstance(
         service.retriever,
-        HybridRetriever,
+        RetrievalPipeline,
     )

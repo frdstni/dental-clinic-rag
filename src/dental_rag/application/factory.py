@@ -26,6 +26,9 @@ from dental_rag.query_processing.pipeline import (
 from dental_rag.query_processing.refiners.hyde import (
     HyDERefiner,
 )
+from dental_rag.reranking.cross_encoder import (
+    CrossEncoderReranker,
+)
 from dental_rag.retrieval.base import (
     RetrievalBackend,
 )
@@ -34,6 +37,9 @@ from dental_rag.retrieval.fusion import (
 )
 from dental_rag.retrieval.hybrid_retriever import (
     HybridRetriever,
+)
+from dental_rag.retrieval.pipeline import (
+    RetrievalPipeline,
 )
 from dental_rag.retrieval.quality_checker import (
     RetrievalQualityChecker,
@@ -91,6 +97,16 @@ def create_rag_service(
         )
     else:
         retriever = dense_retriever
+
+    if settings.reranker_enabled:
+        reranker = CrossEncoderReranker(
+            model_name=settings.reranker_model_name,
+        )
+
+        retriever = RetrievalPipeline(
+            retriever=retriever,
+            reranker=reranker,
+        )
 
     quality_checker = RetrievalQualityChecker()
 
