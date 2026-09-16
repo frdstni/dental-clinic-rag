@@ -1,4 +1,7 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    SettingsConfigDict,
+)
 
 
 class Settings(BaseSettings):
@@ -7,9 +10,24 @@ class Settings(BaseSettings):
     """
 
     openai_api_key: str = ""
-    openai_embedding_model: str = "text-embedding-3-small"
-    openai_chat_model: str = "gpt-4.1-mini"
-    qdrant_collection_name: str = "dental_clinic"
+
+    openai_embedding_model: str = (
+        "text-embedding-3-small"
+    )
+
+    openai_chat_model: str = (
+        "gpt-4.1-mini"
+    )
+
+    qdrant_collection_name: str = (
+        "dental_clinic"
+    )
+
+    reranker_enabled: bool = True
+
+    reranker_model_name: str = (
+        "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env"
