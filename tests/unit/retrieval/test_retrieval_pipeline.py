@@ -2,6 +2,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from dental_rag.retrieval.mmr_models import (
+    MMRDocument,
+)
 from dental_rag.retrieval.models import (
     RetrievalResult,
 )
@@ -118,3 +121,54 @@ def test_retrieval_pipeline_handles_empty_results() -> None:
     assert pipeline.retrieve(
         query="test",
     ) == []
+    
+def test_retrieval_pipeline_uses_mmr_when_enabled() -> None:
+    retriever = MagicMock()
+    reranker = MagicMock()
+    embedding_model = MagicMock()
+    mmr_selector = MagicMock()
+
+    results = [
+        create_result("1", 0.9),
+        create_result("2", 0.8),
+    ]
+
+    retriever.retrieve.return_value = results
+
+    reranker.rerank.return_value = results
+
+    embedding_model.embed.side_effect = [
+        [
+            [1.0, 0.0],
+        ],
+        [
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ],
+    ]
+
+    selected = [
+        MMRDocument(
+            id="2",
+            content="test content",
+            embedding=[0.0, 1.0],
+        )
+    ]
+
+    mmr_selector.select.return_value = selected
+
+    pipeline = RetrievalPipeline(
+        retriever=retriever,
+        reranker=reranker,
+        embedding_model=embedding_model,
+        mmr_selector=mmr_selector,
+    )
+
+    output = pipeline.retrieve(
+        query="implant",
+        limit=1,
+    )
+
+    assert output == results[1:]
+
+    mmr_selector.select.assert_called_once()

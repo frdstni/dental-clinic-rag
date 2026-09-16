@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
@@ -22,21 +23,44 @@ from dental_rag.retrieval.pipeline import (
 )
 
 
-def test_create_rag_service_returns_rag_service() -> None:
-    with (
+def _factory_patches() -> ExitStack:
+    stack = ExitStack()
+
+    stack.enter_context(
         patch(
             "dental_rag.application.factory.OpenAILLM",
-        ),
+        )
+    )
+
+    stack.enter_context(
         patch(
             "dental_rag.application.factory.OpenAIEmbeddingModel",
-        ),
+        )
+    )
+
+    stack.enter_context(
         patch(
             "dental_rag.application.factory.QdrantVectorStore",
-        ),
+        )
+    )
+
+    stack.enter_context(
         patch(
             "dental_rag.application.factory.CrossEncoderReranker",
-        ),
-    ):
+        )
+    )
+
+    stack.enter_context(
+        patch(
+            "dental_rag.application.factory.MMRSelector",
+        )
+    )
+
+    return stack
+
+
+def test_create_rag_service_returns_rag_service() -> None:
+    with _factory_patches():
         service = create_rag_service()
 
     assert isinstance(
@@ -46,20 +70,7 @@ def test_create_rag_service_returns_rag_service() -> None:
 
 
 def test_create_rag_service_configures_hyde_refiner() -> None:
-    with (
-        patch(
-            "dental_rag.application.factory.OpenAILLM",
-        ),
-        patch(
-            "dental_rag.application.factory.OpenAIEmbeddingModel",
-        ),
-        patch(
-            "dental_rag.application.factory.QdrantVectorStore",
-        ),
-        patch(
-            "dental_rag.application.factory.CrossEncoderReranker",
-        ),
-    ):
+    with _factory_patches():
         service = create_rag_service()
 
     assert isinstance(
@@ -69,20 +80,7 @@ def test_create_rag_service_configures_hyde_refiner() -> None:
 
 
 def test_create_rag_service_creates_retrieval_dependencies() -> None:
-    with (
-        patch(
-            "dental_rag.application.factory.OpenAILLM",
-        ),
-        patch(
-            "dental_rag.application.factory.OpenAIEmbeddingModel",
-        ),
-        patch(
-            "dental_rag.application.factory.QdrantVectorStore",
-        ),
-        patch(
-            "dental_rag.application.factory.CrossEncoderReranker",
-        ),
-    ):
+    with _factory_patches():
         service = create_rag_service()
 
     assert service.retriever is not None
@@ -106,20 +104,7 @@ def test_create_rag_service_uses_retrieval_pipeline_when_sparse_index_exists() -
         ],
     )
 
-    with (
-        patch(
-            "dental_rag.application.factory.OpenAILLM",
-        ),
-        patch(
-            "dental_rag.application.factory.OpenAIEmbeddingModel",
-        ),
-        patch(
-            "dental_rag.application.factory.QdrantVectorStore",
-        ),
-        patch(
-            "dental_rag.application.factory.CrossEncoderReranker",
-        ),
-    ):
+    with _factory_patches():
         service = create_rag_service(
             sparse_index=sparse_index,
         )
@@ -127,4 +112,43 @@ def test_create_rag_service_uses_retrieval_pipeline_when_sparse_index_exists() -
     assert isinstance(
         service.retriever,
         RetrievalPipeline,
+    )
+
+
+def test_factory_creates_mmr_selector_when_enabled() -> None:
+    with ExitStack() as stack:
+        mock_mmr = stack.enter_context(
+            patch(
+                "dental_rag.application.factory.MMRSelector",
+            )
+        )
+
+        stack.enter_context(
+            patch(
+                "dental_rag.application.factory.OpenAILLM",
+            )
+        )
+
+        stack.enter_context(
+            patch(
+                "dental_rag.application.factory.OpenAIEmbeddingModel",
+            )
+        )
+
+        stack.enter_context(
+            patch(
+                "dental_rag.application.factory.QdrantVectorStore",
+            )
+        )
+
+        stack.enter_context(
+            patch(
+                "dental_rag.application.factory.CrossEncoderReranker",
+            )
+        )
+
+        create_rag_service()
+
+    mock_mmr.assert_called_once_with(
+        lambda_value=0.5,
     )

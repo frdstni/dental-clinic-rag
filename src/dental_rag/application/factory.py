@@ -38,6 +38,9 @@ from dental_rag.retrieval.fusion import (
 from dental_rag.retrieval.hybrid_retriever import (
     HybridRetriever,
 )
+from dental_rag.retrieval.mmr import (
+    MMRSelector,
+)
 from dental_rag.retrieval.pipeline import (
     RetrievalPipeline,
 )
@@ -98,14 +101,28 @@ def create_rag_service(
     else:
         retriever = dense_retriever
 
+    reranker = None
+    mmr_selector = None
+
     if settings.reranker_enabled:
         reranker = CrossEncoderReranker(
             model_name=settings.reranker_model_name,
         )
 
+    if settings.mmr_enabled:
+        mmr_selector = MMRSelector(
+            lambda_value=settings.mmr_lambda,
+        )
+
+    if (
+        settings.reranker_enabled
+        or settings.mmr_enabled
+    ):
         retriever = RetrievalPipeline(
             retriever=retriever,
             reranker=reranker,
+            embedding_model=embedding_model,
+            mmr_selector=mmr_selector,
         )
 
     quality_checker = RetrievalQualityChecker()

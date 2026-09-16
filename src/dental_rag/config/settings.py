@@ -1,10 +1,9 @@
 from pydantic_settings import (
-    BaseSettings,
     SettingsConfigDict,
 )
 
 
-class Settings(BaseSettings):
+class Settings:
     """
     Application configuration.
     """
@@ -28,6 +27,10 @@ class Settings(BaseSettings):
     reranker_model_name: str = (
         "cross-encoder/ms-marco-MiniLM-L-6-v2"
     )
+
+    mmr_enabled: bool = True
+
+    mmr_lambda: float = 0.5
 
     model_config = SettingsConfigDict(
         env_file=".env"
