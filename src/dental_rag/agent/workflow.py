@@ -37,6 +37,11 @@ def create_agent_graph(
         nodes.general_dental_node,
     )
 
+    graph.add_node(
+        "answer",
+        nodes.answer_node,
+    )
+
     graph.add_edge(
         START,
         "router",
@@ -53,11 +58,16 @@ def create_agent_graph(
 
     graph.add_edge(
         "clinic",
-        END,
+        "answer",
     )
 
     graph.add_edge(
         "general_dental",
+        "answer",
+    )
+
+    graph.add_edge(
+        "answer",
         END,
     )
 

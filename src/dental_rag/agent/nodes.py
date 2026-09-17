@@ -1,3 +1,4 @@
+from dental_rag.agent.answer import AnswerGenerator
 from dental_rag.agent.clinic import ClinicAgent
 from dental_rag.agent.general_dental import (
     GeneralDentalAgent,
@@ -17,12 +18,14 @@ class AgentNodes:
         router: AgentRouter,
         clinic_agent: ClinicAgent,
         general_dental_agent: GeneralDentalAgent,
+        answer_generator: AnswerGenerator,
     ) -> None:
         self.router = router
         self.clinic_agent = clinic_agent
         self.general_dental_agent = (
             general_dental_agent
         )
+        self.answer_generator = answer_generator
 
     def route_query(
         self,
@@ -52,6 +55,14 @@ class AgentNodes:
         state: AgentState,
     ) -> AgentState:
         return self.general_dental_agent.run(
+            state,
+        )
+
+    def answer_node(
+        self,
+        state: AgentState,
+    ) -> AgentState:
+        return self.answer_generator.run(
             state,
         )
 

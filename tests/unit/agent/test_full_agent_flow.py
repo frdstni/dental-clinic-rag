@@ -1,5 +1,6 @@
 import pytest
 
+from dental_rag.agent.answer import AnswerGenerator
 from dental_rag.agent.clinic import ClinicAgent
 from dental_rag.agent.general_dental import (
     GeneralDentalAgent,
@@ -29,6 +30,14 @@ class FakeLLM:
         return self.response
 
 
+class FakeAnswerLLM:
+    def generate(
+        self,
+        prompt: str,
+    ) -> str:
+        return "final answer"
+
+
 class FakeRag:
     def retrieve_with_quality(
         self,
@@ -38,7 +47,19 @@ class FakeRag:
             "Context",
             (),
             {
-                "results": (),
+                "results": (
+                    type(
+                        "Result",
+                        (),
+                        {
+                            "payload": {
+                                "content": (
+                                    "Clinic information"
+                                ),
+                            },
+                        },
+                    )(),
+                ),
             },
         )()
 
@@ -73,6 +94,9 @@ def build_graph(
         general_dental_agent=GeneralDentalAgent(
             FakeSearch(),
         ),
+        answer_generator=AnswerGenerator(
+            FakeAnswerLLM(),
+        ),
     )
 
     return create_agent_graph(
@@ -92,6 +116,7 @@ def test_clinic_route() -> None:
     )
 
     assert result["intent"] == AgentIntent.CLINIC
+    assert result["answer"] == "final answer"
 
 
 def test_general_dental_route() -> None:
@@ -114,6 +139,8 @@ def test_general_dental_route() -> None:
         result["web_results"],
     ) == 1
 
+    assert result["answer"] == "final answer"
+
 
 @pytest.mark.parametrize(
     "intent",
@@ -129,7 +156,9 @@ def test_invalid_route(
         intent,
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+    ):
         graph.invoke(
             {
                 "query": "question",
