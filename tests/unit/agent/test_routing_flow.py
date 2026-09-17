@@ -1,5 +1,6 @@
 import pytest
 
+from dental_rag.agent.answer import AnswerGenerator
 from dental_rag.agent.clinic import ClinicAgent
 from dental_rag.agent.general_dental import (
     GeneralDentalAgent,
@@ -8,6 +9,7 @@ from dental_rag.agent.models import AgentIntent
 from dental_rag.agent.nodes import AgentNodes
 from dental_rag.agent.router import AgentRouter
 from dental_rag.agent.workflow import create_agent_graph
+from dental_rag.web_search.models import WebSearchResult
 
 
 class FakeLLM:
@@ -24,16 +26,36 @@ class FakeLLM:
         return self.response
 
 
+class FakeAnswerLLM:
+    def generate(
+        self,
+        prompt: str,
+    ) -> str:
+        return "answer"
+
+
 class FakeRagService:
     def retrieve_with_quality(
         self,
         query: str,
     ):
+        result = type(
+            "Result",
+            (),
+            {
+                "payload": {
+                    "content": "Clinic information",
+                },
+            },
+        )()
+
         return type(
             "Context",
             (),
             {
-                "results": (),
+                "results": (
+                    result,
+                ),
             },
         )()
 
@@ -43,8 +65,14 @@ class FakeSearchProvider:
         self,
         query: str,
         limit: int = 5,
-    ) -> list:
-        return []
+    ) -> list[WebSearchResult]:
+        return [
+            WebSearchResult(
+                title="Dental",
+                content="Dental information",
+                url="https://example.com",
+            ),
+        ]
 
 
 def build_workflow(
@@ -54,18 +82,17 @@ def build_workflow(
         llm=FakeLLM(response),
     )
 
-    clinic_agent = ClinicAgent(
-        rag_service=FakeRagService(),
-    )
-
-    general_dental_agent = GeneralDentalAgent(
-        search_provider=FakeSearchProvider(),
-    )
-
     nodes = AgentNodes(
         router=router,
-        clinic_agent=clinic_agent,
-        general_dental_agent=general_dental_agent,
+        clinic_agent=ClinicAgent(
+            rag_service=FakeRagService(),
+        ),
+        general_dental_agent=GeneralDentalAgent(
+            search_provider=FakeSearchProvider(),
+        ),
+        answer_generator=AnswerGenerator(
+            llm=FakeAnswerLLM(),
+        ),
     )
 
     return create_agent_graph(
@@ -80,11 +107,12 @@ def test_clinic_query_goes_to_clinic_node() -> None:
 
     result = workflow.invoke(
         {
-            "query": "What are your clinic hours?",
+            "query": "Clinic hours?",
         },
     )
 
     assert result["intent"] == AgentIntent.CLINIC
+    assert result["answer"] == "answer"
 
 
 def test_general_query_goes_to_general_node() -> None:
@@ -94,7 +122,7 @@ def test_general_query_goes_to_general_node() -> None:
 
     result = workflow.invoke(
         {
-            "query": "What causes tooth pain?",
+            "query": "Why tooth pain happens?",
         },
     )
 
@@ -104,8 +132,8 @@ def test_general_query_goes_to_general_node() -> None:
     )
 
     assert (
-        "web_results"
-        in result
+        result["answer"]
+        == "answer"
     )
 
 

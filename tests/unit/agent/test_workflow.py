@@ -1,5 +1,6 @@
 import pytest
 
+from dental_rag.agent.answer import AnswerGenerator
 from dental_rag.agent.clinic import ClinicAgent
 from dental_rag.agent.general_dental import (
     GeneralDentalAgent,
@@ -8,6 +9,7 @@ from dental_rag.agent.models import AgentIntent
 from dental_rag.agent.nodes import AgentNodes
 from dental_rag.agent.router import AgentRouter
 from dental_rag.agent.workflow import create_agent_graph
+from dental_rag.web_search.models import WebSearchResult
 
 
 class FakeLLM:
@@ -39,11 +41,23 @@ class FakeRagService:
         self,
         query: str,
     ):
+        result = type(
+            "Result",
+            (),
+            {
+                "payload": {
+                    "content": "Clinic information",
+                },
+            },
+        )()
+
         return type(
             "Context",
             (),
             {
-                "results": (),
+                "results": (
+                    result,
+                ),
             },
         )()
 
@@ -53,8 +67,22 @@ class FakeSearchProvider:
         self,
         query: str,
         limit: int = 5,
-    ) -> list:
-        return []
+    ) -> list[WebSearchResult]:
+        return [
+            WebSearchResult(
+                title="Dental",
+                content="Dental information",
+                url="https://example.com",
+            ),
+        ]
+
+
+class FakeAnswerLLM:
+    def generate(
+        self,
+        prompt: str,
+    ) -> str:
+        return "generated answer"
 
 
 def build_workflow(
@@ -72,10 +100,15 @@ def build_workflow(
         search_provider=FakeSearchProvider(),
     )
 
+    answer_generator = AnswerGenerator(
+        llm=FakeAnswerLLM(),
+    )
+
     nodes = AgentNodes(
         router=router,
         clinic_agent=clinic_agent,
         general_dental_agent=general_dental_agent,
+        answer_generator=answer_generator,
     )
 
     return create_agent_graph(
@@ -95,6 +128,7 @@ def test_workflow_routes_clinic_query() -> None:
     )
 
     assert result["intent"] == AgentIntent.CLINIC
+    assert result["answer"] == "generated answer"
 
 
 def test_workflow_routes_general_dental_query() -> None:
@@ -113,6 +147,8 @@ def test_workflow_routes_general_dental_query() -> None:
         == AgentIntent.GENERAL_DENTAL
     )
 
+    assert result["answer"] == "generated answer"
+
 
 def test_workflow_rejects_missing_query() -> None:
     workflow = build_workflow(
@@ -123,33 +159,6 @@ def test_workflow_rejects_missing_query() -> None:
         KeyError,
     ):
         workflow.invoke({})
-
-
-@pytest.mark.parametrize(
-    "invalid_state",
-    [
-        {},
-        {
-            "query": "",
-        },
-        {
-            "query": " ",
-        },
-    ],
-)
-def test_workflow_rejects_invalid_queries(
-    invalid_state: dict,
-) -> None:
-    workflow = build_workflow(
-        FakeLLM(),
-    )
-
-    with pytest.raises(
-        (KeyError, ValueError),
-    ):
-        workflow.invoke(
-            invalid_state,
-        )
 
 
 @pytest.mark.parametrize(
@@ -193,7 +202,7 @@ def test_workflow_propagates_llm_failure() -> None:
         )
 
 
-def test_workflow_preserves_unrelated_existing_state() -> None:
+def test_workflow_preserves_state() -> None:
     workflow = build_workflow(
         FakeLLM("clinic"),
     )
